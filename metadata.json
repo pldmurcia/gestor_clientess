@@ -1,0 +1,5 @@
+{
+  "name": "Prop Trader Schedule Optimizer",
+  "description": "An AI-powered calendar to help proprietary firm traders optimally schedule their trading accounts across London and New York sessions, respecting a two-account-per-session limit.",
+  "requestFramePermissions": []
+}
