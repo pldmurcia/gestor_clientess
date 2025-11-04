@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Account, Schedule, Day, Withdrawal } from './types';
 import AccountManager from './components/AccountManager';
 import ScheduleCalendar from './components/ScheduleCalendar';
 import AccountDetailsModal from './components/AccountDetailsModal';
 import Dashboard from './components/Dashboard';
 import { AccountIcon, CalendarIcon, DashboardIcon } from './components/icons/NavIcons';
+import { generateLocalSchedule } from './services/scheduleService';
 
 
 const initialAccounts: Account[] = [
@@ -33,6 +34,28 @@ const App: React.FC = () => {
     const [currentView, setCurrentView] = useState<View>('dashboard');
 
     const activeAccounts = useMemo(() => accounts.filter(acc => acc.status === 'active'), [accounts]);
+    const prevActiveAccountsCount = useRef(activeAccounts.length);
+
+    useEffect(() => {
+        const currentActiveCount = activeAccounts.length;
+        // Generate schedule on initial load if there are active accounts,
+        // or if the number of active accounts has increased.
+        if (
+            (prevActiveAccountsCount.current === 0 && currentActiveCount > 0) ||
+            (currentActiveCount > prevActiveAccountsCount.current)
+        ) {
+             if (currentActiveCount > 0) {
+                const newSchedule = generateLocalSchedule(activeAccounts);
+                setSchedule(newSchedule);
+            }
+        }
+         // If all active accounts are removed, clear the schedule
+        if (currentActiveCount === 0 && prevActiveAccountsCount.current > 0) {
+            setSchedule(initialSchedule);
+        }
+
+        prevActiveAccountsCount.current = currentActiveCount;
+    }, [activeAccounts]);
 
     const accountsMap = useMemo(() => {
         const map = new Map<string, Account>();
