@@ -1,7 +1,9 @@
-import React, { useState, useEffect, FormEvent } from 'react';
-import { Account, AccountStatus, Withdrawal } from '../types';
+import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
+import { Account, AccountStatus, Withdrawal, TradingHistoryFile } from '../types';
 import PlusIcon from './icons/PlusIcon';
 import TrashIcon from './icons/TrashIcon';
+import StatisticsDisplay from './StatisticsDisplay';
+import MagicIcon from './icons/MagicIcon';
 
 interface AccountDetailsModalProps {
     account: Account;
@@ -9,16 +11,32 @@ interface AccountDetailsModalProps {
     onSave: (account: Account) => void;
     onAddWithdrawal: (accountId: string, withdrawal: Omit<Withdrawal, 'id'>) => void;
     onDeleteWithdrawal: (accountId: string, withdrawalId: string) => void;
+    onAddHistoryFile: (accountId: string, file: TradingHistoryFile) => void;
+    onDeleteHistoryFile: (accountId: string, fileId: string) => void;
+    onGenerateStats: (accountId: string) => Promise<void>;
 }
 
-const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({ account, onClose, onSave, onAddWithdrawal, onDeleteWithdrawal }) => {
+const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
+    account,
+    onClose,
+    onSave,
+    onAddWithdrawal,
+    onDeleteWithdrawal,
+    onAddHistoryFile,
+    onDeleteHistoryFile,
+    onGenerateStats
+}) => {
     const [formData, setFormData] = useState<Account>(account);
-
     const [withdrawalDate, setWithdrawalDate] = useState('');
     const [withdrawalAmount, setWithdrawalAmount] = useState('');
+    const [isGeneratingStats, setIsGeneratingStats] = useState(false);
+    const [statsError, setStatsError] = useState<string | null>(null);
 
     useEffect(() => {
         setFormData(account);
+        if(account.stats === undefined) {
+             setStatsError(null);
+        }
     }, [account]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -48,6 +66,40 @@ const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({ account, onCl
             setWithdrawalAmount('');
         }
     };
+
+    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const content = event.target?.result as string;
+                const newFile: TradingHistoryFile = {
+                    id: `file-${Date.now()}`,
+                    name: file.name,
+                    uploadDate: new Date().toISOString(),
+                    content,
+                };
+                onAddHistoryFile(account.id, newFile);
+            };
+            reader.readAsText(file);
+        }
+        // Reset file input to allow uploading the same file again
+        e.target.value = '';
+    };
+    
+    const handleGenerateStats = async () => {
+        setIsGeneratingStats(true);
+        setStatsError(null);
+        try {
+            await onGenerateStats(account.id);
+        } catch (error) {
+            console.error("Failed to generate stats:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            setStatsError(errorMessage);
+        } finally {
+            setIsGeneratingStats(false);
+        }
+    };
     
     return (
         <div 
@@ -55,12 +107,12 @@ const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({ account, onCl
             onClick={onClose}
         >
             <div 
-                className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+                className="bg-gray-800 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
                 <header className="p-4 border-b border-gray-700 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-white">Account Details</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">&times;</button>
+                    <h2 className="text-xl font-bold text-white">Account Details: {account.name}</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
                 </header>
                 
                 <div className="p-6 overflow-y-auto space-y-6">
@@ -134,6 +186,45 @@ const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({ account, onCl
                                 <p className="text-gray-500 text-center text-sm py-2">No withdrawals recorded.</p>
                             )}
                         </div>
+                    </div>
+                    
+                    {/* Trading History Analysis */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-cyan-400 border-b border-gray-700 pb-2">Trading History Analysis</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                             <div>
+                                <label htmlFor="historyFile" className="block text-sm font-medium text-gray-300 mb-2">Upload History (.csv, .html, .xls, .xlsx)</label>
+                                <input type="file" id="historyFile" accept=".csv,.html,.xls,.xlsx" onChange={handleFileChange} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-cyan-600 file:text-white hover:file:bg-cyan-500 transition cursor-pointer"/>
+                                <div className="max-h-40 overflow-y-auto pr-2 -mr-2 mt-3">
+                                    {(formData.historyFiles || []).length > 0 ? (
+                                        <ul className="space-y-2">
+                                            {formData.historyFiles?.map(f => (
+                                                <li key={f.id} className="bg-gray-700/50 rounded-md p-2 flex justify-between items-center text-sm">
+                                                    <span className="font-semibold text-white truncate" title={f.name}>{f.name}</span>
+                                                    <button onClick={() => onDeleteHistoryFile(account.id, f.id)} className="text-gray-400 hover:text-red-500"><TrashIcon /></button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : <p className="text-gray-500 text-center text-sm py-2">No history files uploaded.</p>}
+                                </div>
+                            </div>
+                            <div className="self-end">
+                                <button
+                                    onClick={handleGenerateStats}
+                                    disabled={isGeneratingStats || !formData.historyFiles || formData.historyFiles.length === 0}
+                                    className="w-full flex items-center justify-center bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isGeneratingStats ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <MagicIcon />}
+                                    <span className="ml-2">{isGeneratingStats ? 'Analyzing... (this can take a moment)' : 'Generate Statistics'}</span>
+                                </button>
+                            </div>
+                        </div>
+                        {statsError && (
+                            <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-sm mt-4">
+                                <strong>Analysis Failed:</strong> {statsError}
+                            </div>
+                        )}
+                        {formData.stats && <StatisticsDisplay stats={formData.stats} />}
                     </div>
                 </div>
 

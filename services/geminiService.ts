@@ -1,6 +1,7 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Account, Schedule } from '../types';
+import { Account, Schedule, TradingStats } from '../types';
 
 const daySchema = {
     type: Type.OBJECT,
@@ -29,6 +30,104 @@ const scheduleSchema = {
         friday: daySchema,
     },
     required: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+};
+
+const statSummarySchema = {
+    type: Type.OBJECT,
+    properties: {
+        trades: { type: Type.INTEGER, description: "Total number of trades." },
+        pnl: { type: Type.NUMBER, description: "Net Profit and Loss." },
+        wins: { type: Type.INTEGER, description: "Number of winning trades." },
+        losses: { type: Type.INTEGER, description: "Number of losing trades." },
+        winRate: { type: Type.NUMBER, description: "Percentage of winning trades (0 to 100)." },
+        avgWin: { type: Type.NUMBER, description: "Average PnL of winning trades." },
+        avgLoss: { type: Type.NUMBER, description: "Average PnL of losing trades (as a negative number)." },
+        profitFactor: { type: Type.NUMBER, description: "Gross profit divided by gross loss. Null if no losses." },
+    },
+    required: ["trades", "pnl", "wins", "losses", "winRate", "avgWin", "avgLoss"]
+};
+
+const assetStatItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+        key: { type: Type.STRING, description: "The trading symbol/asset (e.g., 'EURUSD')." },
+        summary: statSummarySchema,
+    },
+    required: ['key', 'summary'],
+};
+const dayOfWeekStatItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+        key: { type: Type.STRING, description: "The day of the week (e.g., 'Monday')." },
+        summary: statSummarySchema,
+    },
+    required: ['key', 'summary'],
+};
+const hourStatItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+        key: { type: Type.STRING, description: "The hour of the day in 24-hour format (e.g., '09')." },
+        summary: statSummarySchema,
+    },
+    required: ['key', 'summary'],
+};
+const monthStatItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+        key: { type: Type.STRING, description: "The month name (e.g., 'January')." },
+        summary: statSummarySchema,
+    },
+    required: ['key', 'summary'],
+};
+const weekStatItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+        key: { type: Type.STRING, description: "The week of the year (e.g., 'Week 30')." },
+        summary: statSummarySchema,
+    },
+    required: ['key', 'summary'],
+};
+
+
+const tradingStatsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        overall: statSummarySchema,
+        byAsset: {
+            type: Type.ARRAY,
+            description: "An array of statistics for each trading symbol/asset.",
+            items: assetStatItemSchema,
+        },
+        byDayOfWeek: {
+            type: Type.ARRAY,
+            description: "An array of statistics for each day of the week.",
+            items: dayOfWeekStatItemSchema,
+        },
+        byHour: {
+            type: Type.ARRAY,
+            description: "An array of statistics for each hour of the day.",
+            items: hourStatItemSchema,
+        },
+        byMonth: {
+            type: Type.ARRAY,
+            description: "An array of statistics for each month.",
+            items: monthStatItemSchema,
+        },
+         byWeek: {
+            type: Type.ARRAY,
+            description: "An array of statistics for each week number of the year.",
+            items: weekStatItemSchema,
+        },
+        byDirection: {
+            type: Type.OBJECT,
+            properties: {
+                long: statSummarySchema,
+                short: statSummarySchema,
+            },
+            required: ["long", "short"]
+        },
+    },
+    required: ["overall", "byAsset", "byDayOfWeek", "byHour", "byMonth", "byWeek", "byDirection"]
 };
 
 
@@ -95,5 +194,72 @@ export const optimizeSchedule = async (accounts: Account[]): Promise<Schedule> =
             throw new Error(`Failed to generate schedule via Gemini API: ${error.message}`);
         }
         throw new Error("An unknown error occurred while generating the schedule.");
+    }
+};
+
+export const generateTradingStats = async (tradeHistoryContent: string): Promise<TradingStats> => {
+     const API_KEY = process.env.API_KEY;
+
+    if (!API_KEY) {
+      throw new Error("API_KEY environment variable not set.");
+    }
+
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const model = 'gemini-2.5-flash';
+    
+    const prompt = `
+        You are a sophisticated trading performance analyst. Your task is to analyze the provided trading history and generate a detailed statistical breakdown. The data provided is the text content of a user-uploaded file, which could be in CSV, HTML, or a text representation of an Excel sheet.
+
+        Please parse this data to identify trades. Look for columns that represent: Symbol, Open Time, Close Time, Direction, and PnL. The column order might vary, and the data could be comma-separated, tab-separated, or within HTML table tags.
+        - "Direction" will be 'long' or 'short'.
+        - "PnL" is a numerical value representing profit or loss.
+        - "Open Time" is a timestamp (e.g., "2024-07-29 09:35:00") from which you must extract the hour, day of the week, week of the year, and month for analysis.
+
+        Analyze the data and calculate the following metrics for each category:
+        - Total number of trades.
+        - Net PnL.
+        - Number of wins and losses.
+        - Win Rate (as a percentage).
+        - Average Win PnL and Average Loss PnL.
+        - Profit Factor (total profit from winners / absolute total loss from losers). If there are no losses, profit factor should be null.
+
+        Provide a complete analysis covering:
+        1.  Overall performance.
+        2.  Performance by each unique asset (Symbol), as an array of objects.
+        3.  Performance by day of the week (e.g., 'Monday', 'Tuesday'), as an array of objects.
+        4.  Performance by hour of the day (24-hour format, e.g., '09', '15'), as an array of objects.
+        5.  Performance by month (e.g., 'January', 'July'), as an array of objects.
+        6.  Performance by week of the year (e.g., 'Week 1', 'Week 30'), as an array of objects.
+        7.  Performance by trade direction ('long' and 'short').
+
+        For the array-based statistics (byAsset, byDayOfWeek, etc.), each object in the array should have a "key" (e.g., the asset name 'EURUSD' or the day 'Monday') and a "summary" object containing the calculated metrics.
+
+        Here is the trading data:
+        \`\`\`
+        ${tradeHistoryContent}
+        \`\`\`
+
+        Your response MUST be a single, valid JSON object that strictly adheres to the provided schema. Do not include any text, explanations, or markdown formatting before or after the JSON object.
+    `;
+
+     try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: tradingStatsSchema,
+            }
+        });
+
+        const jsonText = response.text.trim();
+        return JSON.parse(jsonText) as TradingStats;
+
+    } catch (error) {
+        console.error("Error calling Gemini API for stats generation:", error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to generate stats via Gemini API: ${error.message}`);
+        }
+        throw new Error("An unknown error occurred while generating statistics.");
     }
 };
