@@ -21,32 +21,32 @@ export interface Account {
 
 export type Schedule = Record<Day, Record<Session, string[]>>;
 
-// Fix: Add missing type definitions for statistics display
+// Fix: Added missing type definitions for trading statistics to resolve import errors.
 export interface StatSummary {
-    trades: number;
-    pnl: number;
-    wins: number;
-    losses: number;
-    winRate: number;
-    avgWin: number;
-    avgLoss: number;
-    profitFactor?: number;
+  trades: number;
+  pnl: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgWin: number;
+  avgLoss: number;
+  profitFactor?: number | null;
 }
 
 export interface StatItem {
-    key: string;
-    summary: StatSummary;
+  key: string;
+  summary: StatSummary;
 }
 
 export interface TradingStats {
-    overall: StatSummary;
-    byAsset: StatItem[];
-    byDayOfWeek: StatItem[];
-    byHour: StatItem[];
-    byMonth: StatItem[];
-    byWeek: StatItem[];
-    byDirection: {
-        long: StatSummary;
-        short: StatSummary;
-    };
+  overall: StatSummary;
+  byAsset: StatItem[];
+  byDayOfWeek: StatItem[];
+  byHour: StatItem[];
+  byMonth: StatItem[];
+  byWeek: StatItem[];
+  byDirection: {
+    long: StatSummary;
+    short: StatSummary;
+  };
 }

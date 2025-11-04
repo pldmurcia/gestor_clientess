@@ -1,11 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Account, AccountStatus, Withdrawal, TradingStats } from '../types';
+import { Account, AccountStatus, Withdrawal } from '../types';
 import AccountDetailsModal from './AccountDetailsModal';
 import PlusIcon from './icons/PlusIcon';
 import EyeIcon from './icons/EyeIcon';
-import MagicIcon from './icons/MagicIcon';
-import StatisticsDisplay from './StatisticsDisplay';
-import { generateTradingStats } from '../services/geminiService';
 
 interface AccountManagerProps {
     accounts: Account[];
@@ -21,9 +18,6 @@ const statusStyles: Record<AccountStatus, string> = {
 const AccountManager: React.FC<AccountManagerProps> = ({ accounts, setAccounts }) => {
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [stats, setStats] = useState<TradingStats | null>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisError, setAnalysisError] = useState<string | null>(null);
 
     const handleAddAccount = () => {
         const newAccount: Account = {
@@ -57,30 +51,6 @@ const AccountManager: React.FC<AccountManagerProps> = ({ accounts, setAccounts }
         if (!account) return;
         const updatedAccount = { ...account, withdrawals: account.withdrawals.filter(w => w.id !== withdrawalId) };
         handleSaveAccount(updatedAccount);
-    };
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const content = e.target?.result as string;
-            if (content) {
-                setAnalysisError(null);
-                setIsAnalyzing(true);
-                setStats(null);
-                try {
-                    const result = await generateTradingStats(content);
-                    setStats(result);
-                } catch (error) {
-                    setAnalysisError(error instanceof Error ? error.message : 'An unknown error occurred during analysis.');
-                } finally {
-                    setIsAnalyzing(false);
-                }
-            }
-        };
-        reader.readAsText(file);
     };
 
     const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => a.name.localeCompare(b.name)), [accounts]);
@@ -133,33 +103,6 @@ const AccountManager: React.FC<AccountManagerProps> = ({ accounts, setAccounts }
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <div className="bg-gray-800 rounded-lg shadow-xl p-6">
-                <h2 className="text-2xl font-bold text-white mb-4">Trading Performance Analysis</h2>
-                 <div className="flex items-center space-x-4 bg-gray-900/50 p-4 rounded-md">
-                    <MagicIcon />
-                    <div>
-                        <h3 className="font-semibold text-cyan-400">Analyze Your Trade History</h3>
-                        <p className="text-sm text-gray-400">Upload your trade history file (e.g., from MT4/MT5) to get an instant, AI-powered performance breakdown.</p>
-                    </div>
-                    <input
-                        type="file"
-                        id="file-upload"
-                        className="hidden"
-                        accept=".csv,.html,.htm"
-                        onChange={handleFileChange}
-                        disabled={isAnalyzing}
-                    />
-                    <label
-                        htmlFor="file-upload"
-                        className={`ml-auto cursor-pointer bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                        {isAnalyzing ? 'Analyzing...' : 'Upload File'}
-                    </label>
-                </div>
-                {analysisError && <div className="bg-red-500/20 text-red-300 p-3 rounded-md mt-4">{analysisError}</div>}
-                 {stats && !isAnalyzing && <StatisticsDisplay stats={stats} />}
             </div>
 
             {isModalOpen && selectedAccount && (
