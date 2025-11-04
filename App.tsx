@@ -133,11 +133,9 @@ const App: React.FC = () => {
         }
 
         try {
-            // De-duplication logic
             const allTrades = new Set<string>();
             accountToUpdate.historyFiles.forEach(file => {
                 const lines = file.content.split('\n').map(line => line.trim());
-                // Skip header row if present
                 const startIndex = lines[0]?.toLowerCase().includes('symbol') ? 1 : 0;
                 for (let i = startIndex; i < lines.length; i++) {
                     if (lines[i]) {
@@ -151,7 +149,6 @@ const App: React.FC = () => {
                 return;
             }
             
-            // Assume first file's header is representative, or construct a generic one.
             const header = accountToUpdate.historyFiles[0].content.split('\n')[0];
             const uniqueTradesContent = [header, ...Array.from(allTrades)].join('\n');
             
@@ -161,7 +158,6 @@ const App: React.FC = () => {
             updateAccount(updatedAccount);
         } catch (error) {
             console.error("Error during stats generation in App.tsx:", error);
-            // Re-throw the error so the modal can catch it and display it
             throw error;
         }
     };
@@ -180,7 +176,7 @@ const App: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
-                <header className="text-center mb-6">
+                <header className="relative text-center mb-6">
                     <h1 className="text-4xl sm:text-5xl font-bold text-cyan-400 tracking-tight">
                         Prop Trader Dashboard
                     </h1>
