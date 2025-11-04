@@ -70,7 +70,13 @@ export default async function handler(req: Request) {
         }
     });
 
-    const parsedSchedule = JSON.parse(response.text.trim());
+    const text = response.text;
+    if (!text) {
+        console.error("Gemini API returned an empty response for schedule optimization.");
+        throw new Error("The AI model returned an empty or invalid response. Cannot generate schedule.");
+    }
+    
+    const parsedSchedule = JSON.parse(text.trim());
     
     return new Response(JSON.stringify(parsedSchedule), { status: 200, headers: { 'Content-Type': 'application/json' } });
 

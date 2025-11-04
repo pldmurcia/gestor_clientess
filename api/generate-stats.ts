@@ -75,7 +75,13 @@ export default async function handler(req: Request) {
         }
     });
 
-    const parsedStats = JSON.parse(response.text.trim());
+    const text = response.text;
+    if (!text) {
+        console.error("Gemini API returned an empty response for stats generation.");
+        throw new Error("The AI model returned an empty or invalid response. Cannot generate statistics.");
+    }
+    
+    const parsedStats = JSON.parse(text.trim());
     return new Response(JSON.stringify(parsedStats), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
   } catch (error) {
