@@ -14,6 +14,7 @@ const days: Day[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 /**
  * Generates a weekly schedule by alternating active accounts in a round-robin fashion.
  * The number of accounts per session is dynamic: 3 if there are 3 or more active accounts, otherwise 2.
+ * It intentionally leaves Friday's New York session empty.
  * @param accounts - The list of all active accounts to be scheduled.
  * @returns A new Schedule object.
  */
@@ -38,6 +39,11 @@ const generateLocalSchedule = (accounts: Account[]): Schedule => {
     // Iterate through days and sessions to fill the slots sequentially.
     for (const day of days) {
         for (const session of sessions) {
+            // Skip Friday's New York session to leave it blank.
+            if (day === 'friday' && session === 'newYork') {
+                continue;
+            }
+
             // Add up to `maxAccountsPerSession` accounts per session.
             for (let i = 0; i < maxAccountsPerSession; i++) {
                  // Stop adding to this session if we have fewer unique accounts than the loop count.
