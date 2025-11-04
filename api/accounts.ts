@@ -1,10 +1,6 @@
 import { put, list } from '@vercel/blob';
 import type { Account } from '../types';
 
-export const config = {
-  runtime: 'edge',
-};
-
 const BLOB_PATHNAME = 'accounts.json';
 
 /**
