@@ -15,45 +15,37 @@ const initialSchedule: Schedule = {
     friday: { london: [], newYork: [] },
 };
 
+const ACCOUNTS_STORAGE_KEY = 'prop_trader_accounts_v1';
+
 type View = 'dashboard' | 'accounts' | 'calendar';
 
 const App: React.FC = () => {
-    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [accounts, setAccounts] = useState<Account[]>(() => {
+        try {
+            const item = window.localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+            return item ? JSON.parse(item) : [];
+        } catch (error) {
+            console.error('Error reading accounts from localStorage', error);
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+        } catch (error) {
+            console.error('Error saving accounts to localStorage', error);
+        }
+    }, [accounts]);
+
     const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [currentView, setCurrentView] = useState<View>('dashboard');
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        const fetchAccounts = async () => {
-            try {
-                setIsLoading(true);
-                setError(null);
-                const response = await fetch('/api/accounts');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch accounts from the database.');
-                }
-                const data = await response.json();
-                setAccounts(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'An unknown error occurred');
-                setAccounts([]); // Clear accounts on error
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchAccounts();
-    }, []);
-
 
     const activeAccounts = useMemo(() => accounts.filter(acc => acc.status === 'active'), [accounts]);
     const prevActiveAccountsCount = useRef(0);
 
     useEffect(() => {
-        // This effect runs after the initial data fetch and when accounts change
-        if (isLoading) return; // Don't run schedule logic while loading
-        
         const currentActiveCount = activeAccounts.length;
         if (
             (prevActiveAccountsCount.current === 0 && currentActiveCount > 0) ||
@@ -69,7 +61,7 @@ const App: React.FC = () => {
         }
 
         prevActiveAccountsCount.current = currentActiveCount;
-    }, [activeAccounts, isLoading]);
+    }, [activeAccounts]);
 
     const accountsMap = useMemo(() => {
         const map = new Map<string, Account>();
@@ -88,97 +80,39 @@ const App: React.FC = () => {
         return { totalBalance, totalCosts, totalWithdrawals, netProfit, withdrawalSuccessRate };
     }, [accounts]);
 
-    const addAccount = async (account: Omit<Account, 'id' | 'withdrawals'>) => {
+    const addAccount = (account: Omit<Account, 'id' | 'withdrawals'>) => {
         const newAccount: Account = {
             ...account,
             id: `acc-${Date.now()}`,
             withdrawals: [],
         };
-        
-        // Optimistic update
         setAccounts(prev => [...prev, newAccount]);
-
-        try {
-            const response = await fetch('/api/accounts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newAccount)
-            });
-            if (!response.ok) {
-                throw new Error('Failed to save new account.');
-            }
-        } catch (err) {
-            console.error(err);
-            setError('Could not add account. Please try again.');
-            // Revert on failure
-            setAccounts(prev => prev.filter(acc => acc.id !== newAccount.id));
-        }
     };
 
-    const updateAccount = async (updatedAccount: Account) => {
-        const originalAccounts = [...accounts];
-        
-        // Optimistic update
+    const updateAccount = (updatedAccount: Account) => {
         setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc));
         if (editingAccount?.id === updatedAccount.id) {
             setEditingAccount(updatedAccount);
         }
-
-        try {
-            const response = await fetch('/api/accounts', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedAccount)
-            });
-            if (!response.ok) {
-                throw new Error('Failed to update account.');
-            }
-        } catch (err) {
-            console.error(err);
-            setError('Could not update account. Please try again.');
-             // Revert on failure
-            setAccounts(originalAccounts);
-            if (editingAccount?.id === updatedAccount.id) {
-                setEditingAccount(originalAccounts.find(acc => acc.id === updatedAccount.id) || null);
-            }
-        }
     };
 
-    const deleteAccount = async (id: string) => {
-        const originalAccounts = [...accounts];
-
-        // Optimistic update
+    const deleteAccount = (id: string) => {
         setAccounts(prev => prev.filter(acc => acc.id !== id));
         
-        try {
-            const response = await fetch('/api/accounts', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id })
-            });
-             if (!response.ok) {
-                throw new Error('Failed to delete account.');
+        // If account is deleted, clear its presence from the schedule
+        const newSchedule = JSON.parse(JSON.stringify(schedule)) as Schedule;
+        let scheduleChanged = false;
+        for (const day of Object.keys(newSchedule) as Day[]) {
+            const londonBefore = newSchedule[day].london.length;
+            const newYorkBefore = newSchedule[day].newYork.length;
+            newSchedule[day].london = newSchedule[day].london.filter(accId => accId !== id);
+            newSchedule[day].newYork = newSchedule[day].newYork.filter(accId => accId !== id);
+             if (newSchedule[day].london.length !== londonBefore || newSchedule[day].newYork.length !== newYorkBefore) {
+                scheduleChanged = true;
             }
-            // If account is deleted, clear its presence from the schedule
-            const newSchedule = JSON.parse(JSON.stringify(schedule)) as Schedule;
-            let scheduleChanged = false;
-            for (const day of Object.keys(newSchedule) as Day[]) {
-                const londonBefore = newSchedule[day].london.length;
-                const newYorkBefore = newSchedule[day].newYork.length;
-                newSchedule[day].london = newSchedule[day].london.filter(accId => accId !== id);
-                newSchedule[day].newYork = newSchedule[day].newYork.filter(accId => accId !== id);
-                 if (newSchedule[day].london.length !== londonBefore || newSchedule[day].newYork.length !== newYorkBefore) {
-                    scheduleChanged = true;
-                }
-            }
-            if (scheduleChanged) {
-                 setSchedule(newSchedule);
-            }
-        } catch (err) {
-            console.error(err);
-            setError('Could not delete account. Please try again.');
-             // Revert on failure
-            setAccounts(originalAccounts);
+        }
+        if (scheduleChanged) {
+             setSchedule(newSchedule);
         }
     };
 
@@ -236,31 +170,24 @@ const App: React.FC = () => {
                 </nav>
                 
                 <main>
-                    {isLoading && <div className="text-center text-gray-400 py-10">Loading your data...</div>}
-                    {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-center">{error}</div>}
+                    {currentView === 'dashboard' && <Dashboard metrics={dashboardMetrics} />}
+                    
+                    {currentView === 'accounts' && (
+                        <AccountManager 
+                            accounts={accounts} 
+                            addAccount={addAccount} 
+                            deleteAccount={deleteAccount}
+                            onEditAccount={setEditingAccount} 
+                        />
+                    )}
 
-                    {!isLoading && !error && (
-                        <>
-                            {currentView === 'dashboard' && <Dashboard metrics={dashboardMetrics} />}
-                            
-                            {currentView === 'accounts' && (
-                                <AccountManager 
-                                    accounts={accounts} 
-                                    addAccount={addAccount} 
-                                    deleteAccount={deleteAccount}
-                                    onEditAccount={setEditingAccount} 
-                                />
-                            )}
-
-                            {currentView === 'calendar' && (
-                                <ScheduleCalendar 
-                                    schedule={schedule}
-                                    setSchedule={setSchedule}
-                                    accounts={activeAccounts}
-                                    accountsMap={accountsMap}
-                                />
-                            )}
-                        </>
+                    {currentView === 'calendar' && (
+                        <ScheduleCalendar 
+                            schedule={schedule}
+                            setSchedule={setSchedule}
+                            accounts={activeAccounts}
+                            accountsMap={accountsMap}
+                        />
                     )}
                 </main>
             </div>
