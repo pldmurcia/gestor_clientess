@@ -8,13 +8,20 @@ export interface Withdrawal {
   amount: number;
 }
 
-export interface TradingHistoryFile {
-    id: string;
-    name: string;
-    uploadDate: string;
-    content: string; // The raw text content of the file
+export interface Account {
+  id: string;
+  name: string;
+  company: string;
+  size: number;
+  cost: number;
+  status: AccountStatus;
+  suspensionDate?: string;
+  withdrawals: Withdrawal[];
 }
 
+export type Schedule = Record<Day, Record<Session, string[]>>;
+
+// Fix: Add missing type definitions for statistics display
 export interface StatSummary {
     trades: number;
     pnl: number;
@@ -23,7 +30,7 @@ export interface StatSummary {
     winRate: number;
     avgWin: number;
     avgLoss: number;
-    profitFactor: number;
+    profitFactor?: number;
 }
 
 export interface StatItem {
@@ -43,18 +50,3 @@ export interface TradingStats {
         short: StatSummary;
     };
 }
-
-export interface Account {
-  id: string;
-  name: string;
-  company: string;
-  size: number;
-  cost: number;
-  status: AccountStatus;
-  suspensionDate?: string;
-  withdrawals: Withdrawal[];
-  historyFiles?: TradingHistoryFile[];
-  stats?: TradingStats;
-}
-
-export type Schedule = Record<Day, Record<Session, string[]>>;

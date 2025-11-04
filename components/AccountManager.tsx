@@ -6,7 +6,7 @@ import EyeIcon from './icons/EyeIcon';
 
 interface AccountManagerProps {
     accounts: Account[];
-    addAccount: (account: Omit<Account, 'id' | 'withdrawals' | 'historyFiles' | 'stats'>) => void;
+    addAccount: (account: Omit<Account, 'id' | 'withdrawals'>) => void;
     deleteAccount: (id: string) => void;
     onEditAccount: (account: Account) => void;
 }

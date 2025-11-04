@@ -1,19 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { Account, Schedule, Day, Withdrawal, TradingHistoryFile, TradingStats } from './types';
+import { Account, Schedule, Day, Withdrawal } from './types';
 import AccountManager from './components/AccountManager';
 import ScheduleCalendar from './components/ScheduleCalendar';
 import AccountDetailsModal from './components/AccountDetailsModal';
 import Dashboard from './components/Dashboard';
 import { AccountIcon, CalendarIcon, DashboardIcon } from './components/icons/NavIcons';
-import { generateTradingStats } from './services/geminiService';
 
 
 const initialAccounts: Account[] = [
-    { id: 'acc-1', name: 'Phase 1 - #1', company: 'FTMO', size: 100000, cost: 540, status: 'active', withdrawals: [], historyFiles: [] },
-    { id: 'acc-2', name: 'Phase 2 - #1', company: 'Topstep', size: 50000, cost: 165, status: 'active', withdrawals: [{id: 'w-1', date: '2024-05-15', amount: 1200}], historyFiles: [] },
-    { id: 'acc-3', name: 'Live - #1', company: 'Apex', size: 150000, cost: 207, status: 'suspended', suspensionDate: '2024-06-01', withdrawals: [], historyFiles: [] },
-    { id: 'acc-4', name: 'Phase 1 - #2', company: 'FTMO', size: 200000, cost: 1080, status: 'pending', withdrawals: [], historyFiles: [] },
-    { id: 'acc-5', name: 'Evaluation', company: 'Leeloo', size: 100000, cost: 250, status: 'active', withdrawals: [{id: 'w-2', date: '2024-07-01', amount: 2500}], historyFiles: [] },
+    { id: 'acc-1', name: 'Phase 1 - #1', company: 'FTMO', size: 100000, cost: 540, status: 'active', withdrawals: [] },
+    { id: 'acc-2', name: 'Phase 2 - #1', company: 'Topstep', size: 50000, cost: 165, status: 'active', withdrawals: [{id: 'w-1', date: '2024-05-15', amount: 1200}] },
+    { id: 'acc-3', name: 'Live - #1', company: 'Apex', size: 150000, cost: 207, status: 'suspended', suspensionDate: '2024-06-01', withdrawals: [] },
+    { id: 'acc-4', name: 'Phase 1 - #2', company: 'FTMO', size: 200000, cost: 1080, status: 'pending', withdrawals: [] },
+    { id: 'acc-5', name: 'Evaluation', company: 'Leeloo', size: 100000, cost: 250, status: 'active', withdrawals: [{id: 'w-2', date: '2024-07-01', amount: 2500}] },
 ];
 
 
@@ -52,12 +51,11 @@ const App: React.FC = () => {
         return { totalBalance, totalCosts, totalWithdrawals, netProfit, withdrawalSuccessRate };
     }, [accounts]);
 
-    const addAccount = (account: Omit<Account, 'id' | 'withdrawals' | 'historyFiles' | 'stats'>) => {
+    const addAccount = (account: Omit<Account, 'id' | 'withdrawals'>) => {
         const newAccount: Account = {
             ...account,
             id: `acc-${Date.now()}`,
             withdrawals: [],
-            historyFiles: [],
         };
         setAccounts(prev => [...prev, newAccount]);
     };
@@ -101,67 +99,6 @@ const App: React.FC = () => {
         };
         updateAccount(updatedAccount);
     };
-
-    const addHistoryFile = (accountId: string, file: TradingHistoryFile) => {
-        const accountToUpdate = accounts.find(acc => acc.id === accountId);
-        if (!accountToUpdate) return;
-
-        const updatedAccount: Account = {
-            ...accountToUpdate,
-            historyFiles: [...(accountToUpdate.historyFiles || []), file],
-            stats: undefined, // Invalidate stats
-        };
-        updateAccount(updatedAccount);
-    };
-
-    const deleteHistoryFile = (accountId: string, fileId: string) => {
-        const accountToUpdate = accounts.find(acc => acc.id === accountId);
-        if (!accountToUpdate) return;
-
-        const updatedAccount: Account = {
-            ...accountToUpdate,
-            historyFiles: (accountToUpdate.historyFiles || []).filter(f => f.id !== fileId),
-            stats: undefined, // Invalidate stats
-        };
-        updateAccount(updatedAccount);
-    };
-    
-    const generateStats = async (accountId: string) => {
-        const accountToUpdate = accounts.find(acc => acc.id === accountId);
-        if (!accountToUpdate || !accountToUpdate.historyFiles || accountToUpdate.historyFiles.length === 0) {
-            return;
-        }
-
-        try {
-            const allTrades = new Set<string>();
-            accountToUpdate.historyFiles.forEach(file => {
-                const lines = file.content.split('\n').map(line => line.trim());
-                const startIndex = lines[0]?.toLowerCase().includes('symbol') ? 1 : 0;
-                for (let i = startIndex; i < lines.length; i++) {
-                    if (lines[i]) {
-                        allTrades.add(lines[i]);
-                    }
-                }
-            });
-            
-            if (allTrades.size === 0) {
-                console.warn("No trades found in history files.");
-                return;
-            }
-            
-            const header = accountToUpdate.historyFiles[0].content.split('\n')[0];
-            const uniqueTradesContent = [header, ...Array.from(allTrades)].join('\n');
-            
-            const stats = await generateTradingStats(uniqueTradesContent);
-            
-            const updatedAccount = { ...accountToUpdate, stats };
-            updateAccount(updatedAccount);
-        } catch (error) {
-            console.error("Error during stats generation in App.tsx:", error);
-            throw error;
-        }
-    };
-
 
     const NavButton: React.FC<{ view: View, icon: React.ReactNode, text: string }> = ({ view, icon, text }) => (
         <button
@@ -226,9 +163,6 @@ const App: React.FC = () => {
                     }}
                     onAddWithdrawal={addWithdrawal}
                     onDeleteWithdrawal={deleteWithdrawal}
-                    onAddHistoryFile={addHistoryFile}
-                    onDeleteHistoryFile={deleteHistoryFile}
-                    onGenerateStats={generateStats}
                 />
             )}
         </div>
