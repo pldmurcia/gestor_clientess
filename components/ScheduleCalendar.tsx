@@ -54,9 +54,10 @@ const generateLocalSchedule = (accounts: Account[]): Schedule => {
 
 const AccountCard: React.FC<{ account: Account }> = ({ account }) => (
     <div className="bg-gray-600 rounded p-2 text-center text-xs w-full animate-fade-in">
-        <p className="font-bold text-white truncate">{account.name}</p>
-        <p className="text-cyan-300 truncate">{account.company}</p>
-        <p className="text-gray-300">${account.size.toLocaleString()}</p>
+        <p className="font-bold text-white truncate" title={`${account.company} - ${account.name}`}>
+            <span className="text-cyan-300">{account.company}</span> - {account.name}
+        </p>
+        <p className="text-gray-300 mt-1">${account.size.toLocaleString()}</p>
     </div>
 );
 
@@ -65,6 +66,9 @@ const SessionSlot: React.FC<{
     accountIds: string[];
     accountsMap: Map<string, Account>;
 }> = ({ sessionName, accountIds, accountsMap }) => {
+    const maxAccountsPerSession = accountsMap.size >= 3 ? 3 : 2;
+    const emptySlots = maxAccountsPerSession - accountIds.length;
+
     return (
         <div className="bg-gray-700/50 p-3 rounded-md min-h-[120px]">
             <h4 className="font-semibold text-sm text-center text-gray-300 mb-2">{sessionName}</h4>
@@ -77,8 +81,10 @@ const SessionSlot: React.FC<{
                 ) : (
                     <div className="text-center text-gray-500 text-xs pt-4">Empty</div>
                 )}
-                 {accountIds.length < 2 && <div className="h-[52px]"></div>}
-                 {accountIds.length < 1 && <div className="h-[52px]"></div>}
+                {/* Maintain consistent height based on max accounts per session */}
+                {Array.from({ length: emptySlots > 0 ? emptySlots : 0 }).map((_, index) => (
+                    <div key={`empty-${index}`} className="h-[42px]"></div>
+                ))}
             </div>
         </div>
     );

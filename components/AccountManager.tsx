@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Account, AccountStatus } from '../types';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
@@ -24,6 +24,7 @@ const AccountManager: React.FC<AccountManagerProps> = ({ accounts, addAccount, d
     const [size, setSize] = useState('');
     const [cost, setCost] = useState('');
     const [status, setStatus] = useState<AccountStatus>('pending');
+    const [searchTerm, setSearchTerm] = useState('');
     
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,6 +38,24 @@ const AccountManager: React.FC<AccountManagerProps> = ({ accounts, addAccount, d
             setIsFormVisible(false); // Hide form after submission
         }
     };
+
+    const sortedAndFilteredAccounts = useMemo(() => {
+        const statusOrder: Record<AccountStatus, number> = {
+            active: 0,
+            pending: 1,
+            suspended: 2,
+        };
+
+        const lowercasedSearchTerm = searchTerm.toLowerCase();
+
+        return accounts
+            .filter(acc =>
+                acc.name.toLowerCase().includes(lowercasedSearchTerm) ||
+                acc.company.toLowerCase().includes(lowercasedSearchTerm)
+            )
+            .sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+    }, [accounts, searchTerm]);
+
 
     return (
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 h-full flex flex-col animate-fade-in">
@@ -83,10 +102,20 @@ const AccountManager: React.FC<AccountManagerProps> = ({ accounts, addAccount, d
                 </form>
             </div>
             
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="Search by name or company..."
+                    className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"
+                />
+            </div>
+            
             <div className="flex-grow overflow-y-auto pr-2 -mr-2">
-                <h3 className="text-xl font-semibold text-white mb-3">Your Accounts ({accounts.length})</h3>
+                <h3 className="text-xl font-semibold text-white mb-3">Your Accounts ({sortedAndFilteredAccounts.length})</h3>
                 <ul className="space-y-3">
-                    {accounts.length > 0 ? accounts.map(acc => {
+                    {sortedAndFilteredAccounts.length > 0 ? sortedAndFilteredAccounts.map(acc => {
                         const totalWithdrawals = acc.withdrawals.reduce((sum, w) => sum + w.amount, 0);
                         const netProfit = totalWithdrawals - acc.cost;
 
@@ -115,7 +144,7 @@ const AccountManager: React.FC<AccountManagerProps> = ({ accounts, addAccount, d
                             </li>
                         );
                     }) : (
-                        <p className="text-gray-400 text-center py-4">No accounts added yet.</p>
+                        <p className="text-gray-400 text-center py-4">No accounts match your search.</p>
                     )}
                 </ul>
             </div>
