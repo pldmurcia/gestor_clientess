@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Schedule, Day, Account, Session } from '../types';
-import { optimizeSchedule } from '../services/geminiService';
-import MagicIcon from './icons/MagicIcon';
+import RefreshIcon from './icons/RefreshIcon';
 
 interface ScheduleCalendarProps {
     schedule: Schedule;
@@ -11,6 +10,45 @@ interface ScheduleCalendarProps {
 }
 
 const days: Day[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+
+/**
+ * Generates a weekly schedule by alternating active accounts in a round-robin fashion.
+ * @param accounts - The list of all active accounts to be scheduled.
+ * @returns A new Schedule object.
+ */
+const generateLocalSchedule = (accounts: Account[]): Schedule => {
+    const newSchedule: Schedule = {
+        monday: { london: [], newYork: [] },
+        tuesday: { london: [], newYork: [] },
+        wednesday: { london: [], newYork: [] },
+        thursday: { london: [], newYork: [] },
+        friday: { london: [], newYork: [] },
+    };
+
+    if (accounts.length === 0) {
+        return newSchedule;
+    }
+
+    const accountIds = accounts.map(acc => acc.id);
+    let accountIndex = 0;
+    const sessions: Session[] = ['london', 'newYork'];
+
+    // Iterate through days and sessions to fill the slots sequentially.
+    for (const day of days) {
+        for (const session of sessions) {
+            // Add up to 2 accounts per session.
+            for (let i = 0; i < 2; i++) {
+                 // Stop adding to this session if we've already added every unique account.
+                 if (i >= accountIds.length) break;
+
+                 newSchedule[day][session].push(accountIds[accountIndex]);
+                 accountIndex = (accountIndex + 1) % accountIds.length;
+            }
+        }
+    }
+    return newSchedule;
+};
+
 
 const AccountCard: React.FC<{ account: Account }> = ({ account }) => (
     <div className="bg-gray-600 rounded p-2 text-center text-xs w-full animate-fade-in">
@@ -45,25 +83,16 @@ const SessionSlot: React.FC<{
 };
 
 const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({ schedule, setSchedule, accounts, accountsMap }) => {
-    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleOptimize = async () => {
+    const handleGenerate = () => {
         if (accounts.length === 0) {
-            setError("Please add at least one *active* account to optimize the schedule. Pending or suspended accounts are not scheduled.");
+            setError("Please add at least one *active* account to generate the schedule. Pending or suspended accounts are not scheduled.");
             return;
         }
-        setIsLoading(true);
         setError(null);
-        try {
-            const newSchedule = await optimizeSchedule(accounts);
-            setSchedule(newSchedule);
-        } catch (err) {
-            console.error(err);
-            setError("Failed to generate schedule. Please try again.");
-        } finally {
-            setIsLoading(false);
-        }
+        const newSchedule = generateLocalSchedule(accounts);
+        setSchedule(newSchedule);
     };
 
     return (
@@ -71,16 +100,11 @@ const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({ schedule, setSchedu
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-white mb-2 sm:mb-0">Weekly Schedule</h2>
                 <button
-                    onClick={handleOptimize}
-                    disabled={isLoading}
-                    className="w-full sm:w-auto flex items-center justify-center bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleGenerate}
+                    className="w-full sm:w-auto flex items-center justify-center bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out transform hover:scale-105"
                 >
-                    {isLoading ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    ) : (
-                        <MagicIcon />
-                    )}
-                    <span className="ml-2">{isLoading ? 'Optimizing...' : 'AI Optimize Schedule'}</span>
+                    <RefreshIcon />
+                    <span className="ml-2">Generate Schedule</span>
                 </button>
             </div>
 
